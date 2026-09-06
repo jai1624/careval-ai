@@ -1,0 +1,8 @@
+activity_code,base_hourly_rate_inr,benchmark_role,source,is_synthetic_fallback
+311,420.00,Cook / Maharaj,2025-26 urban India market reference (Urban Company / ChefKart / platform benchmarks),true
+312,280.00,Domestic Helper,2025-26 urban India market reference (metro domestic worker platforms),true
+313,220.00,Laundry & Ironing Helper,2025-26 urban India market reference (laundry pickup services),true
+381,320.00,Household Administrator,2025-26 urban India market reference (concierge / errand services),true
+411,500.00,Home Tutor,2025-26 urban India market reference (UrbanPro / home tuition platforms),true
+412,300.00,Nanny / Caretaker,2025-26 urban India market reference (metro nanny / childcare agencies),true
+420,380.00,Home Care Attendant,2025-26 urban India market reference (elder care / attendant platforms),true

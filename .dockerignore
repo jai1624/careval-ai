@@ -1,0 +1,11 @@
+.git
+.pytest_cache
+tests
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.env
+.env.example
+.streamlit/secrets.toml

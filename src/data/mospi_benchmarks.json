@@ -1,0 +1,13 @@
+{
+  "_comment": "LOCKED SOURCE OF TRUTH. Do not modify these values programmatically. Domestic and Caregiving are tracked separately and must never be combined into a single benchmark.",
+  "source": "MoSPI Time Use Survey (India) — cached minutes/day for comparison only (not used in rupee valuation)",
+  "catalog_url": "https://microdata.gov.in/nada/index.php/catalog/223",
+  "domestic": {
+    "female_minutes_per_day": 289,
+    "male_minutes_per_day": 88
+  },
+  "caregiving": {
+    "female_minutes_per_day": 137,
+    "male_minutes_per_day": 75
+  }
+}

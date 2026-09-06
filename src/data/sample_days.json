@@ -1,0 +1,42 @@
+{
+  "sample_days": [
+    {
+      "id": "sample_1",
+      "label": "A working mother's Tuesday (sample day)",
+      "user_gender": "female",
+      "tasks": [
+        {"raw_text": "Made breakfast for everyone before work", "normalized_task": "made breakfast", "activity_code": "311", "estimated_minutes": 30},
+        {"raw_text": "Packed lunch boxes and dropped kids to school", "normalized_task": "dropped kids to school", "activity_code": "412", "estimated_minutes": 25},
+        {"raw_text": "Quick grocery run on the way back", "normalized_task": "grocery run", "activity_code": "381", "estimated_minutes": 20},
+        {"raw_text": "Cooked dinner for the family", "normalized_task": "cooked dinner", "activity_code": "311", "estimated_minutes": 45},
+        {"raw_text": "Washed the dishes after dinner", "normalized_task": "washed dishes", "activity_code": "311", "estimated_minutes": 20},
+        {"raw_text": "Helped kids with homework", "normalized_task": "helped with homework", "activity_code": "411", "estimated_minutes": 40},
+        {"raw_text": "Folded and put away laundry", "normalized_task": "folded laundry", "activity_code": "313", "estimated_minutes": 25}
+      ]
+    },
+    {
+      "id": "sample_2",
+      "label": "Caring for aging parents (sample day)",
+      "user_gender": "female",
+      "tasks": [
+        {"raw_text": "Gave my mother-in-law her morning medicines", "normalized_task": "gave medicines", "activity_code": "420", "estimated_minutes": 15},
+        {"raw_text": "Cooked breakfast and lunch", "normalized_task": "cooked breakfast and lunch", "activity_code": "311", "estimated_minutes": 60},
+        {"raw_text": "Took her for a doctor's appointment", "normalized_task": "doctor appointment", "activity_code": "420", "estimated_minutes": 90},
+        {"raw_text": "Cleaned the house in the afternoon", "normalized_task": "cleaned house", "activity_code": "312", "estimated_minutes": 50},
+        {"raw_text": "Managed everyone's schedules and reminders", "normalized_task": "managed schedules", "activity_code": "381", "estimated_minutes": 20},
+        {"raw_text": "Washed clothes in the evening", "normalized_task": "washed clothes", "activity_code": "313", "estimated_minutes": 30}
+      ]
+    },
+    {
+      "id": "sample_3",
+      "label": "A father sharing the load (sample day)",
+      "user_gender": "male",
+      "tasks": [
+        {"raw_text": "Cooked breakfast for the kids", "normalized_task": "cooked breakfast", "activity_code": "311", "estimated_minutes": 25},
+        {"raw_text": "Dropped kids to school and picked them up later", "normalized_task": "dropped and picked up kids", "activity_code": "412", "estimated_minutes": 40},
+        {"raw_text": "Fixed the leaking kitchen tap", "normalized_task": "fixed kitchen tap", "activity_code": "381", "estimated_minutes": 35},
+        {"raw_text": "Helped with homework after dinner", "normalized_task": "helped with homework", "activity_code": "411", "estimated_minutes": 30}
+      ]
+    }
+  ]
+}

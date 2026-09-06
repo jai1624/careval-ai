@@ -1,0 +1,133 @@
+{
+  "311": {
+    "display_label": "Cooking & meal prep",
+    "icon": "🍳",
+    "skills": ["Cooking"],
+    "micro_business": {
+      "title": "Home-Kitchen Tiffin or Meal-Prep Service",
+      "description": "You already plan, cook, and time meals for your household every day. That same skill is the core of a home-based tiffin service or small batch meal-prep business for working professionals nearby.",
+      "step_one": "Step 1: Pick 2 dishes you already cook well and ask 3 neighbors or coworkers if they'd pay for a weekly tiffin of just those two."
+    },
+    "market_enquiry": {
+      "service": "Home cook / tiffin",
+      "prompt": "Ask nearby cooks or tiffin services what they charge per hour or per meal.",
+      "links": [
+        {"label": "Urban Company — cooks near you", "url": "https://www.urbancompany.com/search?category=cooks"},
+        {"label": "Justdial — home cooks", "url": "https://www.justdial.com/search?q=home+cook"}
+      ]
+    }
+  },
+  "312": {
+    "display_label": "House cleaning & tidying",
+    "icon": "🧹",
+    "skills": ["Household management"],
+    "micro_business": {
+      "title": "Weekly Home Organizing / Cleaning Micro-Service",
+      "description": "You've built a system for keeping a home running smoothly. That organizational eye is exactly what busy households pay outside help for.",
+      "step_one": "Step 1: Offer a single paid 2-hour deep-clean or declutter session to one household in your building or society this month."
+    },
+    "market_enquiry": {
+      "service": "House cleaning",
+      "prompt": "Ask local cleaners what a 2-hour visit costs in your area.",
+      "links": [
+        {"label": "Urban Company — home cleaning", "url": "https://www.urbancompany.com/search?category=home-cleaning"},
+        {"label": "Justdial — house cleaning", "url": "https://www.justdial.com/search?q=house+cleaning"}
+      ]
+    }
+  },
+  "313": {
+    "display_label": "Laundry & clothes care",
+    "icon": "🧺",
+    "skills": ["Household management"],
+    "micro_business": {
+      "title": "Neighborhood Laundry & Ironing Pickup Service",
+      "description": "Laundry management -- sorting, washing, ironing, folding -- is a service busy families and bachelors regularly pay for nearby.",
+      "step_one": "Step 1: Ask 2 neighbors if they'd pay a flat weekly rate for you to wash and iron a fixed number of clothing items."
+    },
+    "market_enquiry": {
+      "service": "Laundry & ironing",
+      "prompt": "Ask nearby laundry shops or pickup services for a weekly bundle rate.",
+      "links": [
+        {"label": "Urban Company — laundry", "url": "https://www.urbancompany.com/search?category=laundry"},
+        {"label": "Justdial — laundry services", "url": "https://www.justdial.com/search?q=laundry+service"}
+      ]
+    }
+  },
+  "381": {
+    "display_label": "Grocery runs & household management",
+    "icon": "🛒",
+    "skills": ["Planning", "Household management"],
+    "micro_business": {
+      "title": "Errand & Grocery-Run Concierge",
+      "description": "You already manage household logistics efficiently. Elderly neighbors and busy professionals often pay for a trusted local person to handle errands.",
+      "step_one": "Step 1: Offer to run one weekly errand (grocery pickup or bill payment) for an elderly neighbor for a small flat fee."
+    },
+    "market_enquiry": {
+      "service": "Errands & household help",
+      "prompt": "Ask local helpers or concierge listings what a grocery or errand run costs.",
+      "links": [
+        {"label": "Justdial — household help", "url": "https://www.justdial.com/search?q=household+help"},
+        {"label": "Sulekha — domestic help", "url": "https://www.sulekha.com/domestic-help"}
+      ]
+    }
+  },
+  "411": {
+    "display_label": "Homework support & tutoring",
+    "icon": "📚",
+    "skills": ["Caregiving"],
+    "micro_business": {
+      "title": "After-School Homework Tutoring Circle",
+      "description": "Helping with homework daily has sharpened real teaching skills. Small tutoring groups for a subject you're confident in are in steady local demand.",
+      "step_one": "Step 1: Offer a one-hour homework help session for 2-3 kids in your building for one subject you're strongest in."
+    },
+    "market_enquiry": {
+      "service": "Home tuition",
+      "prompt": "Ask local tutors what they charge for one hour of homework help nearby.",
+      "links": [
+        {"label": "UrbanPro — find tutors", "url": "https://www.urbanpro.com/find-tutor"},
+        {"label": "Justdial — home tuition", "url": "https://www.justdial.com/search?q=home+tuition"}
+      ]
+    }
+  },
+  "412": {
+    "display_label": "Childcare",
+    "icon": "👶",
+    "skills": ["Caregiving"],
+    "micro_business": {
+      "title": "Trusted Neighborhood Childcare Co-op or After-School Watch",
+      "description": "You're already skilled at feeding, entertaining, and safely supervising children. Other parents nearby need exactly this kind of trusted help during specific hours.",
+      "step_one": "Step 1: Offer to watch one neighbor's child for 2 hours after school on a single day and see how it goes."
+    },
+    "market_enquiry": {
+      "service": "Childcare / nanny",
+      "prompt": "Ask nearby nannies or after-school sitters what a 2-hour session costs.",
+      "links": [
+        {"label": "Justdial — babysitters", "url": "https://www.justdial.com/search?q=babysitter"},
+        {"label": "Sulekha — nanny / childcare", "url": "https://www.sulekha.com/nanny-services"}
+      ]
+    }
+  },
+  "420": {
+    "display_label": "Elder care",
+    "icon": "👵",
+    "skills": ["Caregiving"],
+    "micro_business": {
+      "title": "Elder Companion & Care-Coordination Service",
+      "description": "You already manage medicines, appointments, and daily support for an elder. Many families need trained, trustworthy help doing exactly this for their own parents.",
+      "step_one": "Step 1: Offer to companion-sit or handle one doctor visit for an elderly neighbor this month."
+    },
+    "market_enquiry": {
+      "service": "Elder care / attendant",
+      "prompt": "Ask local attendants or companion-care listings for a half-day or visit rate.",
+      "links": [
+        {"label": "Justdial — elderly care", "url": "https://www.justdial.com/search?q=elderly+care"},
+        {"label": "Sulekha — elder care", "url": "https://www.sulekha.com/elderly-care"}
+      ]
+    }
+  },
+  "unclassified": {
+    "display_label": "Other activity",
+    "icon": "✨",
+    "micro_business": null
+  }
+}
