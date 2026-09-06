@@ -33,6 +33,7 @@ from src.utils.classifier import keyword_classify
 from src.graph.state import LoggedTask
 from src.utils.bigquery_client import persist_day_log
 from src.utils.data_loader import load_taxonomy
+from src.utils.sample_provider import list_sample_days, build_sample_day_tasks
 from src.utils.logging_setup import setup_logging
 from src.utils.valuation import (
     compute_mospi_comparisons,
@@ -686,6 +687,28 @@ def commit_task_text(text: str) -> None:
 
 
 
+def load_sample_day(sample_id: str) -> None:
+    """Instantly load a precomputed realistic day without requiring typing or API calls."""
+    reset_day(full=True)
+    tasks, gender = build_sample_day_tasks(sample_id)
+    if not tasks:
+        return
+    st.session_state.tasks = [t.model_dump() for t in tasks]
+    if gender:
+        st.session_state.user_gender = gender
+    st.session_state.welcomed = True
+
+    samples = list_sample_days()
+    sample_info = next((s for s in samples if s.get("id") == sample_id), None)
+    label = sample_info.get("label", "Sample day") if sample_info else "Sample day"
+
+    add_message(
+        "assistant",
+        f"Loaded **{label}** with {len(tasks)} care tasks logged.",
+    )
+    finish_day()
+
+
 def finish_day() -> None:
     """End collecting and show results, with a chat reply."""
     if not get_day_tasks():
@@ -1112,6 +1135,23 @@ stage = st.session_state.ui_stage
 if not st.session_state.get("pending_user_text"):
     if stage == "results":
         render_results()
+    elif not st.session_state.tasks and len(st.session_state.messages) <= 1:
+        st.markdown(
+            '<div style="margin: 0.8rem 0 0.4rem 0; font-size: 0.82rem; font-weight: 600; color: #9CA3AF; text-transform: uppercase; letter-spacing: 0.05em;">'
+            '⚡ Try a sample day (instant demo)'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        sample_options = [
+            ("sample_1", "👩 Working Mom's Day"),
+            ("sample_2", "👵 Caring for Elders"),
+            ("sample_3", "👨 Father Sharing Load"),
+        ]
+        cols = st.columns(len(sample_options))
+        for col, (sid, slabel) in zip(cols, sample_options):
+            if col.button(slabel, key=f"btn_{sid}", use_container_width=True):
+                load_sample_day(sid)
+                st.rerun()
 
 user_input = st.chat_input("Type your day… e.g. cooked for 45 min")
 if user_input:

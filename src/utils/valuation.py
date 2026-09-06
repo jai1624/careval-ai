@@ -226,6 +226,12 @@ def get_ranked_categories(day_tasks: list[LoggedTask]) -> list[str]:
     return sorted(totals, key=lambda code: (-totals[code], code))
 
 
+def get_dominant_category(day_tasks: list[LoggedTask]) -> str | None:
+    """Return the activity code the user spent the most minutes on today."""
+    ranked = get_ranked_categories(day_tasks)
+    return ranked[0] if ranked else None
+
+
 def get_micro_business_idea(category: str | None) -> dict | None:
     if not category:
         return None
