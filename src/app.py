@@ -1,6 +1,7 @@
 """
 CareVal AI — Streamlit UI.
 
+
 Mobile-first, warm, sisterly. Centered ~500px. Valuation runs when
 the user says the day is done — no extra confirmation screen.
 Run: streamlit run src/app.py
