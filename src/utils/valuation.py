@@ -1,6 +1,7 @@
 """
 Illustrative replacement-cost valuation + MoSPI time-use comparison.
 
+
 Rupees = (minutes / 60) * mapped paid-role hourly rate in Python.
 MoSPI TUS (live JSON or cached file) supplies minutes/day only — never wages.
 Gemini never sees or influences a rupee figure.
