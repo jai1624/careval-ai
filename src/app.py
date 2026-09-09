@@ -9,6 +9,7 @@ Run: streamlit run src/app.py
 from __future__ import annotations
 
 import sys
+import uuid
 from datetime import date
 from pathlib import Path
 
@@ -18,24 +19,25 @@ if str(_ROOT) not in sys.path:
 
 import streamlit as st
 
-from src.config import config
 from src.agents.conversational_agent import ensure_gemini, generate, gemini_ready
+from src.chat_engine import landing_close
+from src.config import config
 from src.graph.orchestrator import (
+    is_done_request,
+    is_duration_only,
     is_idea_request,
     is_question_about_results,
-    is_done_request,
     is_reset_request,
     is_unsure_duration,
-    is_duration_only,
     parse_stated_minutes,
     run_turn,
 )
-from src.utils.classifier import keyword_classify
 from src.graph.state import LoggedTask
 from src.utils.bigquery_client import persist_day_log
+from src.utils.classifier import classify_task, keyword_classify
 from src.utils.data_loader import load_taxonomy
-from src.utils.sample_provider import list_sample_days, build_sample_day_tasks
 from src.utils.logging_setup import setup_logging
+from src.utils.sample_provider import build_sample_day_tasks, list_sample_days
 from src.utils.valuation import (
     compute_mospi_comparisons,
     compute_valuation,
@@ -47,16 +49,25 @@ from src.utils.valuation import (
 setup_logging()
 
 st.set_page_config(
-    page_title="CareVal AI",
+    page_title="CareVal",
     page_icon="🌿",
     layout="centered",
     initial_sidebar_state="collapsed",
+    menu_items={"Get help": None, "Report a bug": None, "About": None},
 )
 
-st.markdown(
-    """
+APP_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
+
+:root {
+  --ink: #E8F5EE;
+  --paper: #07110E;
+  --muted: #8BA396;
+  --line: rgba(16,185,129,0.18);
+  --accent: #34D399;
+  --accent-soft: rgba(16,185,129,0.12);
+}
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -66,118 +77,139 @@ html, body, .stApp, [data-testid="stAppViewContainer"] {
 }
 [data-testid="stAppViewContainer"], .stApp, [data-testid="stHeader"],
 [data-testid="stMain"], [data-testid="stAppScrollToBottomContainer"] {
-  background: #0A0F1E !important;
-  background-image: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(16,185,129,0.18) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(99,102,241,0.12) 0%, transparent 50%),
-    linear-gradient(180deg, #0A0F1E 0%, #0D1424 100%) !important;
+  background: #07110E !important;
+  background-image: radial-gradient(ellipse 80% 50% at 50% -8%, rgba(16,185,129,0.22) 0%, transparent 55%) !important;
 }
-[data-testid="stHeader"] { background: transparent !important; box-shadow: none !important; }
+header[data-testid="stHeader"],
 [data-testid="stToolbar"], [data-testid="stDecoration"],
 #MainMenu, footer, header [data-testid="stHeaderActionElements"],
 [data-testid="stStatusWidget"], [data-testid="stSidebar"],
-[data-testid="stSidebarCollapsedControl"] {
+[data-testid="stSidebarCollapsedControl"],
+.stAppDeployButton, [data-testid="stAppDeployButton"],
+div[data-testid="stHeader"] {
   visibility: hidden !important;
   height: 0 !important;
+  min-height: 0 !important;
   display: none !important;
 }
+section[data-testid="stSidebar"] { display: none !important; }
+.stApp { font-family: "Inter", system-ui, sans-serif !important; color: var(--ink) !important; }
 .block-container {
   max-width: 440px !important;
-  padding: 1.5rem 1.2rem 9rem 1.2rem !important;
+  padding: 1rem 1.15rem 8.5rem 1.15rem !important;
   font-family: "Inter", system-ui, sans-serif !important;
 }
 @media (max-width: 375px) {
-  .block-container { padding-left: 0.85rem !important; padding-right: 0.85rem !important; }
+  .block-container { padding-left: 0.9rem !important; padding-right: 0.9rem !important; }
 }
 h1,h2,h3,p,label,span,div { word-wrap: break-word; overflow-wrap: anywhere; }
 
-/* ── Header ── */
 .care-heading {
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 2.2rem;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.7rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #10B981 0%, #34D399 40%, #6EE7B7 100%);
+  background: linear-gradient(135deg, #34D399, #6EE7B7);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin: 0;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   text-align: center;
-  filter: drop-shadow(0 0 24px rgba(16,185,129,0.4));
 }
 .care-date {
   text-align: center;
-  color: rgba(167,193,167,0.6);
-  font-size: 0.7rem;
-  letter-spacing: 0.18em;
+  color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  margin: 0.4rem 0 0 0;
-  font-weight: 500;
+  margin: 0.28rem 0 0 0;
+  font-weight: 600;
 }
 .care-kicker {
   text-align: center;
-  color: rgba(209,213,219,0.7);
-  font-size: 0.9rem;
-  margin: 0.4rem 0 1.6rem 0;
-  letter-spacing: 0.01em;
-  font-weight: 300;
+  color: var(--muted);
+  font-size: 0.92rem;
+  margin: 0.25rem 0 0 0;
+  font-weight: 400;
 }
 
-/* ── Cards ── */
+.care-progress { margin: 1.1rem 0 1.25rem 0; }
+.care-progress-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.45rem;
+}
+.care-track {
+  height: 3px;
+  background: var(--line);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.care-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+}
+.care-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #5F7A6C;
+}
+.care-steps .on { color: var(--ink); font-weight: 600; }
+
 .care-card {
   background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 20px;
-  padding: 1.3rem 1.4rem;
-  margin: 0.85rem 0;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  animation: fadeSlideIn 0.4s cubic-bezier(0.22,1,0.36,1) both;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1.05rem 1.1rem;
+  margin: 0.7rem 0;
 }
-.muted { color: rgba(156,163,175,0.8); font-size: 0.85rem; }
+.care-card h3 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.05rem;
+  margin: 0 0 0.4rem 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+.muted { color: var(--muted); font-size: 0.84rem; }
 
-/* ── Task list ── */
 .task-line {
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  font-size: 0.93rem;
-  color: #D1D5DB;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.92rem;
+  color: var(--ink);
 }
 .task-line:last-child { border-bottom: none; }
 .disclaimer {
-  font-size: 0.74rem;
-  color: rgba(156,163,175,0.6);
-  font-style: italic;
-  margin-top: 0.75rem;
-  line-height: 1.5;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.7rem;
+  line-height: 1.45;
 }
 
-/* ── Chat bubbles ── */
 [data-testid="stChatMessage"] {
   background: transparent !important;
-  padding: 0.3rem 0 0.65rem 0 !important;
-  gap: 0.6rem !important;
+  padding: 0.15rem 0 0.55rem 0 !important;
+  gap: 0 !important;
   border: none !important;
 }
-[data-testid="stChatMessage"] > div:first-child {
-  background: linear-gradient(135deg, rgba(16,185,129,0.2), rgba(52,211,153,0.15)) !important;
-  color: #34D399 !important;
-  box-shadow: 0 0 0 1px rgba(16,185,129,0.2), 0 0 12px rgba(16,185,129,0.12) !important;
-  width: 1.75rem !important;
-  height: 1.75rem !important;
-  min-width: 1.75rem !important;
-  font-size: 0.85rem !important;
-  border-radius: 50% !important;
-}
+[data-testid="stChatMessage"] > div:first-child { display: none !important; }
 [data-testid="stChatMessageContent"] {
   max-width: 100%;
   overflow-wrap: anywhere;
-  font-size: 1.02rem;
-  line-height: 1.65;
-  color: #E5E7EB;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--ink);
+  padding: 0 !important;
 }
 [data-testid="stChatMessage"]:has([aria-label*="user"]) {
   flex-direction: row-reverse !important;
@@ -185,167 +217,115 @@ h1,h2,h3,p,label,span,div { word-wrap: break-word; overflow-wrap: anywhere; }
 [data-testid="stChatMessage"]:has([aria-label*="user"]) [data-testid="stChatMessageContent"] {
   background: #FFFFFF !important;
   border: 1px solid rgba(16,185,129,0.25);
-  border-radius: 18px 18px 4px 18px;
-  padding: 0.7rem 1rem;
-  color: #000000 !important;
+  border-radius: 14px 14px 4px 14px;
+  padding: 0.65rem 0.9rem;
+  color: #07110E !important;
 }
 [data-testid="stChatMessage"]:has([aria-label*="user"]) [data-testid="stChatMessageContent"] p,
 [data-testid="stChatMessage"]:has([aria-label*="user"]) [data-testid="stChatMessageContent"] span,
 [data-testid="stChatMessage"]:has([aria-label*="user"]) [data-testid="stChatMessageContent"] li {
-  color: #000000 !important;
+  color: #07110E !important;
 }
 
-/* ── Buttons ── */
 div.stButton > button {
   border-radius: 12px !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
-  background: rgba(255,255,255,0.05) !important;
-  color: #D1D5DB !important;
-  font-weight: 500 !important;
-  font-size: 0.88rem !important;
-  padding: 0.55rem 0.5rem !important;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05) !important;
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-  backdrop-filter: blur(8px);
+  border: 1px solid var(--line) !important;
+  background: rgba(255,255,255,0.04) !important;
+  color: var(--ink) !important;
+  font-weight: 550 !important;
+  font-size: 0.86rem !important;
+  padding: 0.62rem 0.45rem !important;
+  box-shadow: none !important;
 }
 div.stButton > button:hover {
-  border-color: rgba(16,185,129,0.4) !important;
-  background: rgba(16,185,129,0.1) !important;
-  color: #34D399 !important;
-  transform: translateY(-2px) scale(1.02) !important;
-  box-shadow: 0 8px 20px rgba(16,185,129,0.15), inset 0 1px 0 rgba(255,255,255,0.08) !important;
-}
-div.stButton > button:active {
-  transform: scale(0.97) !important;
+  border-color: rgba(16,185,129,0.45) !important;
+  background: var(--accent-soft) !important;
+  color: #6EE7B7 !important;
 }
 div.stButton > button[kind="primary"],
 [data-testid="stBaseButton-primary"] {
-  background: linear-gradient(135deg, #059669, #10B981) !important;
-  color: #ECFDF5 !important;
-  border-color: transparent !important;
-  font-size: 0.96rem !important;
+  background: #10B981 !important;
+  color: #042F22 !important;
+  border-color: #10B981 !important;
+  font-size: 0.95rem !important;
   font-weight: 600 !important;
-  padding: 0.78rem 0.5rem !important;
-  box-shadow: 0 4px 16px rgba(16,185,129,0.35), inset 0 1px 0 rgba(255,255,255,0.15) !important;
+  padding: 0.8rem 0.5rem !important;
 }
 div.stButton > button[kind="primary"]:hover,
 [data-testid="stBaseButton-primary"]:hover {
-  background: linear-gradient(135deg, #047857, #059669) !important;
-  box-shadow: 0 8px 24px rgba(16,185,129,0.45) !important;
-  transform: translateY(-2px) !important;
+  background: #34D399 !important;
 }
 
-/* ── Input bar ── */
 [data-testid="stBottom"],
 [data-testid="stBottomBlockContainer"],
 [data-testid="stBottom"] > div {
-  background: #0A0F1E !important;
-  background-image: linear-gradient(180deg, rgba(10,15,30,0) 0%, #0A0F1E 30%) !important;
+  background: var(--paper) !important;
   border: none !important;
   box-shadow: none !important;
 }
 div[data-testid="stChatInput"],
 div[data-testid="stChatInput"] > div {
-  border: 1px solid rgba(16,185,129,0.25) !important;
+  border: 1px solid rgba(16,185,129,0.28) !important;
   background: #FFFFFF !important;
-  border-radius: 16px !important;
-  box-shadow: 0 0 0 1px rgba(16,185,129,0.08), 0 8px 32px rgba(0,0,0,0.3) !important;
+  border-radius: 14px !important;
+  box-shadow: none !important;
   color-scheme: light !important;
-  backdrop-filter: blur(16px) !important;
 }
 div[data-testid="stChatInput"] textarea,
 div[data-testid="stChatInput"] [contenteditable="true"],
 [data-testid="stChatInputTextArea"] {
-  border-radius: 16px !important;
-  font-size: 0.98rem !important;
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
+  font-size: 0.96rem !important;
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
   background: #FFFFFF !important;
-  caret-color: #000000 !important;
+  caret-color: #000 !important;
 }
 div[data-testid="stChatInput"] textarea::placeholder,
 [data-testid="stChatInputTextArea"]::placeholder {
   color: #6B7280 !important;
   -webkit-text-fill-color: #6B7280 !important;
-  opacity: 1 !important;
 }
 [data-testid="stChatInputSubmitButton"] {
-  background: linear-gradient(135deg, #059669, #10B981) !important;
-  color: #ECFDF5 !important;
+  background: #10B981 !important;
+  color: #042F22 !important;
   border-radius: 10px !important;
-  box-shadow: 0 2px 8px rgba(16,185,129,0.3) !important;
 }
 
-/* ── Expander ── */
 [data-testid="stExpander"] {
   background: rgba(255,255,255,0.03) !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
-  border-radius: 14px !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 12px !important;
   box-shadow: none !important;
-  margin-top: 0.85rem !important;
-  backdrop-filter: blur(8px);
-}
-[data-testid="stExpander"] details,
-[data-testid="stExpander"] summary {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
+  margin-top: 0.65rem !important;
 }
 [data-testid="stExpander"] summary {
-  color: rgba(156,163,175,0.8) !important;
-  font-size: 0.84rem !important;
-  justify-content: center !important;
+  color: var(--muted) !important;
+  font-size: 0.82rem !important;
 }
 
-/* ── Typing indicator ── */
-.thinking-state {
-  color: #9CA3AF;
-  font-size: 0.92rem;
-}
-.thinking-state .thinking-label {
-  font-style: italic;
-  color: #D1D5DB;
-  margin-bottom: 0.35rem;
-}
-.thinking-state .thinking-model {
-  margin-top: 0.35rem;
-  font-size: 0.78rem;
-  color: #6B7280;
-}
+.thinking-state { color: var(--muted); font-size: 0.88rem; }
+.thinking-state .thinking-label { color: var(--ink); margin-bottom: 0.3rem; }
+.thinking-state .thinking-model { margin-top: 0.3rem; font-size: 0.74rem; color: var(--muted); }
 .typing-dots span {
   display: inline-block;
-  width: 0.4rem;
-  height: 0.4rem;
-  margin: 0 0.1rem;
-  border-radius: 50%;
-  background: #10B981;
+  width: 0.35rem; height: 0.35rem; margin: 0 0.08rem;
+  border-radius: 50%; background: var(--accent);
   animation: pulseDot 1.1s infinite ease-in-out;
 }
 .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
 .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
 @keyframes pulseDot {
-  0%, 80%, 100% { opacity: 0.2; transform: translateY(0) scale(0.8); }
-  40% { opacity: 1; transform: translateY(-4px) scale(1); }
+  0%, 80%, 100% { opacity: 0.2; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
 }
-
-/* ── Animations ── */
-@keyframes fadeSlideIn {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ── Misc ── */
 .stCaption, [data-testid="stCaptionContainer"] {
-  color: rgba(156,163,175,0.7) !important;
+  color: var(--muted) !important;
   text-align: center;
 }
+iframe, [data-testid="stIFrame"] { border: none !important; }
+[data-testid="stVerticalBlockBorderWrapper"] { border: none !important; }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+"""
 
 DISCLAIMER = (
     "Replacement cost estimate based on 2025–26 urban India market rates "
@@ -359,6 +339,11 @@ GENDER_CHIPS = [
     ("Man", "male"),
     ("Prefer not to say", "unspecified"),
 ]
+GENDER_MAP = {label: value for label, value in GENDER_CHIPS}
+AFFIRM = frozenset({"yes", "yeah", "yep", "sure", "ok", "okay", "please"})
+AFFIRM_IDEA = AFFIRM | {"yes please"}
+AFFIRM_MOSPI = AFFIRM | {"compare"}
+DECLINE = frozenset({"no", "nope", "nah", "not now", "later"})
 
 FOLLOW_UPS = {
     "311": "Was that breakfast, dinner, or both?",
@@ -371,6 +356,8 @@ FOLLOW_UPS = {
 }
 
 # What the user can type next — labels people actually say.
+FLOW_STEPS = ("Start", "Log", "Value", "Next")
+
 TASK_HINTS = [
     ("311", "cooking", "cooked for 45 min"),
     ("312", "cleaning", "cleaned for 30 min"),
@@ -382,25 +369,36 @@ TASK_HINTS = [
 ]
 
 
+# ---- Session State ----
+
+DEFAULT_SESSION_STATE = {
+    "messages": [],
+    "tasks": [],
+    "ui_stage": "collecting",
+    "user_gender": None,
+    "user_persona": None,
+    "user_city": None,
+    "show_breakdown": False,
+    "idea_index": 0,
+    "research_consent": False,
+    "bq_persisted": False,
+    "welcomed": False,
+    "pending_prompt": None,
+    "awaiting_followup": False,
+    "pending_user_text": None,
+    "typing_ready": False,
+    "sample_speaker": None,
+    "awaiting_idea_offer": False,
+    "show_idea": False,
+    "awaiting_mospi_offer": False,
+    "show_mospi": False,
+    "greet_step": "name",
+    "user_name": None,
+}
+
+
 def init_state() -> None:
-    defaults = {
-        "messages": [],
-        "tasks": [],
-        "ui_stage": "collecting",
-        "user_gender": None,
-        "user_persona": None,
-        "user_city": None,
-        "show_breakdown": False,
-        "idea_index": 0,
-        "research_consent": False,
-        "bq_persisted": False,
-        "welcomed": False,
-        "pending_prompt": None,
-        "awaiting_followup": False,
-        "pending_user_text": None,
-        "typing_ready": False,
-    }
-    for key, value in defaults.items():
+    for key, value in DEFAULT_SESSION_STATE.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
@@ -431,19 +429,16 @@ def get_day_tasks() -> list[LoggedTask]:
 
 
 def reset_day(full: bool = True) -> None:
-    st.session_state.tasks = []
-    st.session_state.ui_stage = "collecting"
-    st.session_state.user_gender = None
-    st.session_state.user_persona = None
-    st.session_state.user_city = None
-    st.session_state.gender_prompted_on_results = False
-    st.session_state.show_breakdown = False
-    st.session_state.idea_index = 0
-    st.session_state.bq_persisted = False
-    st.session_state.pending_prompt = None
-    st.session_state.awaiting_followup = False
-    st.session_state.pending_user_text = None
-    st.session_state.typing_ready = False
+    keys_to_clear = [
+        "tasks", "ui_stage", "user_gender", "user_persona", "user_city",
+        "show_breakdown", "idea_index", "bq_persisted", "pending_prompt",
+        "awaiting_followup", "pending_user_text", "typing_ready",
+        "sample_speaker", "awaiting_idea_offer", "show_idea",
+        "awaiting_mospi_offer", "show_mospi", "user_name"
+    ]
+    for key in keys_to_clear:
+        st.session_state[key] = DEFAULT_SESSION_STATE[key]
+    st.session_state.greet_step = "name" if full else None
     if full:
         st.session_state.messages = []
         st.session_state.welcomed = False
@@ -472,6 +467,39 @@ def remaining_task_hints() -> str:
     return (
         f"You can add {names} — e.g. *{sample}* — or say **that's all**."
     )
+
+
+# ---- Ideas ----
+
+def cycle_idea() -> None:
+    st.session_state.idea_index = int(st.session_state.get("idea_index") or 0) + 1
+
+
+def ideas_for_day(day: list[LoggedTask]) -> list[dict]:
+    """Ranked today categories first, then other paths — so 'Another idea' stays rich."""
+    seen: set[str] = set()
+    ordered: list[dict] = []
+    taxonomy = get_taxonomy()
+    ranked = get_ranked_categories(day)
+    today_set = set(ranked)
+    rest = [c for c in taxonomy if c not in today_set and c != "unclassified"]
+    for code in ranked + rest:
+        idea = taxonomy.get(code, {}).get("micro_business")
+        if not isinstance(idea, dict) or not idea.get("title"):
+            continue
+        title = idea["title"]
+        if title in seen:
+            continue
+        seen.add(title)
+        ordered.append(
+            {
+                **idea,
+                "from_today": code in today_set,
+                "source_category": code,
+                "source_label": taxonomy.get(code, {}).get("display_label") or code,
+            }
+        )
+    return ordered
 
 
 def current_idea() -> dict | None:
@@ -591,8 +619,7 @@ def gender_from_text(text: str) -> str | None:
 
 
 def apply_gender_choice(label: str) -> None:
-    mapping = {chip: value for chip, value in GENDER_CHIPS}
-    value = mapping.get(label)
+    value = GENDER_MAP.get(label)
     if value and value != "unspecified":
         st.session_state.user_gender = value
     if st.session_state.ui_stage == "results":
@@ -607,11 +634,41 @@ def apply_gender_choice(label: str) -> None:
         add_message("assistant", "Thank you — that helps me compare your time more fairly. What happened next?")
 
 
+def mospi_spoken_line() -> str:
+    rows = [r for r in compute_mospi_comparisons(get_day_tasks()) if r.user_minutes > 0]
+    if not rows:
+        return "I don't have enough of today's minutes yet to compare with the national average."
+    top = max(rows, key=lambda r: r.user_minutes)
+    return (
+        f"{top.comparison_text} "
+        "That's official time-use minutes — it never sets the rupee figure."
+    )
+
+
+# ---- Logging ----
+
+def offer_mospi() -> None:
+    st.session_state.show_mospi = True
+    st.session_state.awaiting_mospi_offer = False
+    add_message("assistant", mospi_spoken_line())
+
+
+def format_day_tally() -> str:
+    """Each chore stays its own line item — total is the sum, not a merge."""
+    taxonomy = get_taxonomy()
+    day = get_day_tasks()
+    bits = []
+    for task in day:
+        label = taxonomy.get(task.category, {}).get("display_label") or task.normalized_task
+        bits.append(f"{label} {format_duration(task.estimated_minutes)}")
+    total = format_duration(sum(t.estimated_minutes for t in day))
+    if len(bits) <= 1:
+        return total
+    return " + ".join(bits) + f" = {total}"
+
+
 def commit_task_direct(phrase: str, minutes: int) -> None:
     """Log a task directly — no LLM pipeline needed when phrase+minutes are known."""
-    import uuid
-    from src.utils.classifier import classify_task
-    from src.graph.state import LoggedTask
     ensure_gemini()
     category = classify_task(phrase, gemini_client=gemini_ready())
     task = LoggedTask(
@@ -624,7 +681,6 @@ def commit_task_direct(phrase: str, minutes: int) -> None:
     st.session_state.tasks = st.session_state.tasks + [task.model_dump()]
     st.session_state.pending_prompt = None
     day = get_day_tasks()
-    total = sum(t.estimated_minutes for t in day)
     taxonomy = get_taxonomy()
     display = taxonomy.get(category, {}).get("display_label") or phrase.title()
     icon = taxonomy.get(category, {}).get("icon", "✨")
@@ -637,8 +693,8 @@ def commit_task_direct(phrase: str, minutes: int) -> None:
         st.session_state.awaiting_followup = category in FOLLOW_UPS
     add_message(
         "assistant",
-        f"I've got {icon} **{display}** for about {minutes} min "
-        f"({format_duration(total)} so far). {follow}",
+        f"I've got {icon} **{display}** for {format_duration(minutes)} — kept on its own. "
+        f"Today: {format_day_tally()}. {follow}",
     )
     st.session_state.ui_stage = "collecting"
 
@@ -687,7 +743,6 @@ def commit_task_text(text: str) -> None:
     st.session_state.ui_stage = "collecting"
 
 
-
 def load_sample_day(sample_id: str) -> None:
     """Instantly load a precomputed realistic day without requiring typing or API calls."""
     reset_day(full=True)
@@ -698,15 +753,20 @@ def load_sample_day(sample_id: str) -> None:
     if gender:
         st.session_state.user_gender = gender
     st.session_state.welcomed = True
+    st.session_state.greet_step = None
 
     samples = list_sample_days()
-    sample_info = next((s for s in samples if s.get("id") == sample_id), None)
-    label = sample_info.get("label", "Sample day") if sample_info else "Sample day"
-
-    add_message(
-        "assistant",
-        f"Loaded **{label}** with {len(tasks)} care tasks logged.",
+    sample_info = next((s for s in samples if s.get("id") == sample_id), None) or {}
+    speaker = sample_info.get("speaker") or "someone"
+    pronoun = (sample_info.get("pronoun") or "they").lower()
+    intro = sample_info.get("intro") or f"Here's what {speaker} told me about their day."
+    st.session_state.sample_speaker = speaker
+    verb = "She said" if pronoun == "she" else "He said" if pronoun == "he" else "They said"
+    bullets = "\n".join(
+        f"- {t.raw_text} (*{format_duration(t.estimated_minutes)}*)" for t in tasks
     )
+    add_message("assistant", intro)
+    add_message("assistant", f"{verb}:\n\n{bullets}")
     finish_day()
 
 
@@ -719,11 +779,16 @@ def finish_day() -> None:
         )
         return
     st.session_state.ui_stage = "results"
-    reply = "Okay — here's what today's care work adds up to."
-    extra = format_enquiry_links(get_market_enquiries(get_day_tasks()))
-    if extra:
-        reply = f"{reply}\n\n{extra}"
-    add_message("assistant", reply)
+    st.session_state.show_idea = False
+    st.session_state.awaiting_idea_offer = True
+    line = landing_close(
+        get_day_tasks(),
+        speaker=st.session_state.get("sample_speaker") or st.session_state.get("user_name"),
+    ).split("\n\n")[0]
+    add_message(
+        "assistant",
+        f"{line}\n\nWould you like a suggestion for what this skill could become?",
+    )
 
 
 def maybe_capture_profile(text: str) -> None:
@@ -746,7 +811,7 @@ def ask_how_long(phrase: str) -> None:
     st.session_state.awaiting_followup = False
     add_message(
         "assistant",
-        f"That counts. About how long did that take — even a guess is fine?",
+        "That counts. About how long did that take — even a guess is fine?",
     )
 
 
@@ -764,8 +829,51 @@ def is_followup_reply(text: str) -> bool:
     return 0 < len(words) <= 10
 
 
+def _first_name(text: str) -> str:
+    raw = (text or "").strip().lower()
+    for prefix in ("my name is ", "i'm ", "i am ", "this is "):
+        if raw.startswith(prefix):
+            raw = raw[len(prefix):]
+            break
+    token = raw.split()[0] if raw.split() else ""
+    return token[:24].title() if token.isalpha() else ""
+
+
+# ---- Conversation ----
+
+def handle_greeting(text: str) -> bool:
+    """Name → how was the day → chores. Returns True if this turn is done."""
+    step = st.session_state.get("greet_step")
+    if not step:
+        return False
+    if keyword_classify(text) or parse_stated_minutes(text) or is_done_request(text):
+        st.session_state.greet_step = None
+        return False
+    if step == "name":
+        name = _first_name(text)
+        st.session_state.user_name = name or None
+        st.session_state.greet_step = "day"
+        hello = f"Nice to meet you, {name}." if name else "Nice to meet you."
+        add_message("assistant", f"{hello} How did your day go?")
+        return True
+    if step == "day":
+        st.session_state.greet_step = None
+        name = st.session_state.get("user_name")
+        who = f"{name}, what" if name else "What"
+        add_message(
+            "assistant",
+            f"{who} chores did you do today — cooking, cleaning, kids, laundry? "
+            "A time helps, like *cooked for 45 min*.",
+        )
+        return True
+    return False
+
+
 def process_user_text(text: str) -> None:
     maybe_capture_profile(text)
+
+    if handle_greeting(text):
+        return
 
     if is_done_request(text):
         finish_day()
@@ -779,8 +887,7 @@ def process_user_text(text: str) -> None:
     if gender_label:
         also_task = bool(keyword_classify(text) or parse_stated_minutes(text))
         if also_task:
-            mapping = {chip: value for chip, value in GENDER_CHIPS}
-            value = mapping.get(gender_label)
+            value = GENDER_MAP.get(gender_label)
             if value and value != "unspecified":
                 st.session_state.user_gender = value
         else:
@@ -849,75 +956,44 @@ def process_user_text(text: str) -> None:
     commit_task_text(text)
 
 
+# ---- Render ----
 
-def cycle_idea() -> None:
-    st.session_state.idea_index = int(st.session_state.get("idea_index") or 0) + 1
-
-
-def ideas_for_day(day: list[LoggedTask]) -> list[dict]:
-    """Ranked today categories first, then other paths — so 'Another idea' stays rich."""
-    seen: set[str] = set()
-    ordered: list[dict] = []
-    taxonomy = get_taxonomy()
-    ranked = get_ranked_categories(day)
-    today_set = set(ranked)
-    rest = [c for c in taxonomy if c not in today_set and c != "unclassified"]
-    for code in ranked + rest:
-        idea = taxonomy.get(code, {}).get("micro_business")
-        if not isinstance(idea, dict) or not idea.get("title"):
-            continue
-        title = idea["title"]
-        if title in seen:
-            continue
-        seen.add(title)
-        ordered.append(
-            {
-                **idea,
-                "from_today": code in today_set,
-                "source_category": code,
-                "source_label": taxonomy.get(code, {}).get("display_label") or code,
-            }
-        )
-    return ordered
+def flow_step() -> int:
+    if st.session_state.ui_stage == "results":
+        return 4 if st.session_state.get("show_idea") else 3
+    if st.session_state.get("tasks"):
+        return 2
+    return 1
 
 
-def render_results() -> None:
-    day = get_day_tasks()
-    if not day:
-        st.session_state.ui_stage = "collecting"
-        return
+def render_progress() -> None:
+    step = flow_step()
+    label = FLOW_STEPS[step - 1]
+    width = int((step / len(FLOW_STEPS)) * 100)
+    chips = "".join(
+        f'<span class="{"on" if i <= step else ""}">{name}</span>'
+        for i, name in enumerate(FLOW_STEPS, start=1)
+    )
+    st.markdown(
+        f'<div class="care-progress">'
+        f'<div class="care-progress-label">Step {step} of {len(FLOW_STEPS)} · {label}</div>'
+        f'<div class="care-track"><div class="care-fill" style="width:{width}%"></div></div>'
+        f'<div class="care-steps">{chips}</div></div>',
+        unsafe_allow_html=True,
+    )
 
-    valuation = compute_valuation(day)
-    comparisons = compute_mospi_comparisons(day)
-    ideas = ideas_for_day(day)
-    idea_count = len(ideas)
-    idea_pos = int(st.session_state.get("idea_index") or 0) % idea_count if idea_count else 0
-    idea = ideas[idea_pos] if ideas else None
 
-    duration = format_duration(valuation.total_minutes_logged)
-    annual = format_inr(valuation.daily_value_inr * 365)
-    skills = " · ".join(valuation.skills) if valuation.skills else ""
-    rupees = int(round(valuation.daily_value_inr))
-
-    city_note = f" in {st.session_state.user_city}" if st.session_state.get("user_city") else ""
-
+def render_hero(rupees: int, duration: str, city_note: str) -> None:
     st.components.v1.html(
         f"""
-<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(16,185,129,0.25);border-radius:20px;padding:1.3rem 1.4rem;
-  font-family:'Inter',system-ui,sans-serif;box-shadow:0 4px 24px rgba(0,0,0,0.4),0 0 0 1px rgba(16,185,129,0.1),inset 0 1px 0 rgba(255,255,255,0.06);
-  backdrop-filter:blur(12px);animation:fadeSlideIn 0.4s cubic-bezier(0.22,1,0.36,1) both;">
+<div style="text-align:center;padding:1.4rem 0 0.4rem 0;font-family:'Inter',system-ui,sans-serif;">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@700&display=swap');
-    @keyframes fadeSlideIn {{ from {{ opacity:0; transform:translateY(14px); }} to {{ opacity:1; transform:translateY(0); }} }}
-    html,body {{ margin:0; background:transparent; color-scheme:dark; }}
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700&display=swap');
+    html,body {{ margin:0; background:transparent; }}
   </style>
-  <div style="text-align:left;color:rgba(167,193,167,0.6);font-size:0.68rem;letter-spacing:0.18em;text-transform:uppercase;margin:0 0 0.75rem 0;font-weight:500;">Today · remembered</div>
-  <div style="margin-bottom:0.85rem;font-family:'Playfair Display',Georgia,serif;font-size:1.1rem;line-height:1.6;color:#D1FAE5;">
-    You did a lot today. This work is quiet — and it counts.</div>
-  <div style="color:rgba(156,163,175,0.7);font-size:0.82rem;margin-bottom:0.2rem;">Replacement value</div>
-  <div id="care-rupees" style="font-family:'Playfair Display',Georgia,serif;font-size:2.8rem;font-weight:700;background:linear-gradient(135deg,#10B981,#34D399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.05;letter-spacing:-0.02em;">₹0</div>
-  <div style="margin-top:0.3rem;color:#A7F3D0;font-size:0.95rem;">{duration} of care &amp; domestic work{city_note}</div>
-  <div style="font-size:0.72rem;color:rgba(156,163,175,0.5);font-style:italic;margin-top:0.85rem;line-height:1.5;">{DISCLAIMER}</div>
+  <div style="font-size:0.68rem;letter-spacing:0.16em;text-transform:uppercase;font-weight:600;color:#6EE7B7;margin-bottom:0.45rem;">Your number</div>
+  <div id="care-rupees" style="font-family:'Fraunces',Georgia,serif;font-size:4.4rem;font-weight:700;background:linear-gradient(135deg,#34D399,#A7F3D0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:0.95;letter-spacing:-0.04em;">₹0</div>
+  <div style="margin-top:0.7rem;color:#8BA396;font-size:0.95rem;">{duration} of care &amp; domestic work{city_note}</div>
 </div>
 <script>
 (function() {{
@@ -934,7 +1010,7 @@ def render_results() -> None:
     return sign + '₹' + parts.reverse().join(',') + ',' + last3;
   }}
   const start = performance.now();
-  const dur = 720;
+  const dur = 800;
   function tick(now) {{
     const t = Math.min(1, (now - start) / dur);
     const eased = 1 - Math.pow(1 - t, 3);
@@ -945,29 +1021,58 @@ def render_results() -> None:
 }})();
 </script>
 """,
-        height=248,
+        height=196,
     )
 
-    # 2. One compact comparison
-    domestic = next((c for c in comparisons if c.domain == "domestic"), None)
-    caregiving = next((c for c in comparisons if c.domain == "caregiving"), None)
-    lines = []
-    if domestic and domestic.user_minutes > 0:
-        lines.append(
-            f"Domestic: you <b>{domestic.user_minutes} min</b> · women {domestic.female_avg_minutes} · men {domestic.male_avg_minutes}"
-        )
-    if caregiving and caregiving.user_minutes > 0:
-        lines.append(
-            f"Caregiving: you <b>{caregiving.user_minutes} min</b> · women {caregiving.female_avg_minutes} · men {caregiving.male_avg_minutes}"
-        )
-    if lines:
-        st.markdown(
-            f'<div class="care-card" style="background:rgba(99,102,241,0.07);border-color:rgba(99,102,241,0.2);">'
-            f'<div style="font-weight:600;margin-bottom:0.4rem;color:#C4B5FD;">📊 Compared with MoSPI</div>'
-            f'<div style="color:#D1D5DB;font-size:0.92rem;">{"<br>".join(lines)}</div>'
-            f'<div class="disclaimer">Time-use minutes only. Domestic and caregiving stay separate.</div></div>',
-            unsafe_allow_html=True,
-        )
+
+def render_results() -> None:
+    day = get_day_tasks()
+    if not day:
+        st.session_state.ui_stage = "collecting"
+        return
+
+    valuation = compute_valuation(day)
+    duration = format_duration(valuation.total_minutes_logged)
+    rupees = int(round(valuation.daily_value_inr))
+    city_note = f" in {st.session_state.user_city}" if st.session_state.get("user_city") else ""
+    render_hero(rupees, duration, city_note)
+    st.markdown(
+        f'<div class="disclaimer" style="text-align:center;margin:0 0 0.9rem 0;">{DISCLAIMER}</div>',
+        unsafe_allow_html=True,
+    )
+
+    if st.session_state.get("awaiting_idea_offer") and not st.session_state.get("show_idea"):
+        yes, no = st.columns(2)
+        if yes.button("Yes, suggest an idea", type="primary", use_container_width=True):
+            st.session_state.awaiting_idea_offer = False
+            st.session_state.show_idea = True
+            offer_idea()
+            st.rerun()
+        if no.button("No, I'm good", use_container_width=True):
+            st.session_state.awaiting_idea_offer = False
+            st.session_state.awaiting_mospi_offer = True
+            add_message(
+                "assistant",
+                "That's fine. Want to see how your time compares with other women in India?",
+            )
+            st.rerun()
+        return
+
+    if st.session_state.get("awaiting_mospi_offer") and not st.session_state.get("show_mospi"):
+        if st.button("Compare my time", type="primary", use_container_width=True):
+            offer_mospi()
+            st.rerun()
+        return
+
+    if not st.session_state.get("show_idea") and not st.session_state.get("show_mospi"):
+        return
+
+    ideas = ideas_for_day(day)
+    idea_count = len(ideas)
+    idea_pos = int(st.session_state.get("idea_index") or 0) % idea_count if idea_count else 0
+    idea = ideas[idea_pos] if ideas else None
+    annual = format_inr(valuation.daily_value_inr * 365)
+    skills = " · ".join(valuation.skills) if valuation.skills else ""
 
     # 3. One next step — purpose: unpaid skill → one tiny paid experiment
     if idea:
@@ -981,43 +1086,37 @@ def render_results() -> None:
         source_line = f'<div class="muted" style="margin-bottom:0.35rem;">From: {source}</div>' if source else ""
         skill_line = f'<div class="muted" style="margin-bottom:0.35rem;">Skills today: {skills}</div>' if skills and from_today else ""
         st.markdown(
-            f'<div class="care-card" style="background:rgba(245,158,11,0.06);border-color:rgba(245,158,11,0.2);">'
-            f'<div style="font-weight:600;margin-bottom:0.35rem;color:#FCD34D;">🚀 {heading}</div>'
-            f'<div class="muted" style="margin-bottom:0.55rem;font-size:0.82rem;">{why}</div>'
+            f'<div class="care-card">'
+            f'<h3>{heading}</h3>'
+            f'<div class="muted" style="margin-bottom:0.55rem;">{why}</div>'
             f"{source_line}{skill_line}"
-            f'<div style="font-weight:600;color:#FEF3C7;">{idea.get("title", "")}</div>'
-            f'<div style="margin-top:0.4rem;color:#D1D5DB;font-size:0.93rem;">{idea.get("step_one", "")}</div>'
+            f'<div style="font-weight:600;color:#ECFDF5;">{idea.get("title", "")}</div>'
+            f'<div style="margin-top:0.4rem;color:#8BA396;font-size:0.93rem;">{idea.get("step_one", "")}</div>'
             f'<div class="disclaimer">Idea {idea_pos + 1} of {idea_count} — tap below to see another path.</div></div>',
             unsafe_allow_html=True,
         )
         if st.button(
-            "🚀 Another idea",
+            "Another idea",
             key="cycle_idea_btn",
             use_container_width=True,
         ):
             offer_idea(advance=True)
             st.rerun()
-
-    if (
-        not st.session_state.user_gender
-        and not st.session_state.get("gender_prompted_on_results")
-    ):
-        st.session_state.gender_prompted_on_results = True
-        add_message(
-            "assistant",
-            "Optional — if you're comfortable saying woman / man / prefer not to say, "
-            "I can personalise the MoSPI comparison. Or just ask me anything about the total.",
-        )
+        if not st.session_state.get("show_mospi") and st.button(
+            "Compare my time", use_container_width=True, key="mospi_after_idea"
+        ):
+            offer_mospi()
+            st.rerun()
 
     if st.session_state.show_breakdown:
         rows = "".join(
-            f"<div class='task-line'><span style='color:#E5E7EB;'>{tv.icon} {tv.display_label}"
+            f"<div class='task-line'><span>{tv.icon} {tv.display_label}"
             f"<br><span class='muted'>{tv.benchmark_role} · {tv.minutes} min</span></span>"
             f"<span style='color:#34D399;font-weight:600;'>{format_inr(tv.value_inr)}</span></div>"
             for tv in valuation.task_values
         )
         st.markdown(
-            f'<div class="care-card"><div style="font-weight:600;margin-bottom:0.4rem;color:#E5E7EB;">How this adds up</div>'
+            f'<div class="care-card"><h3>How this adds up</h3>'
             f"{rows}"
             f'<div class="muted" style="margin-top:0.5rem;">If this day repeated for a year (illustrative): <span style="color:#34D399;font-weight:600;">{annual}</span></div></div>',
             unsafe_allow_html=True,
@@ -1066,54 +1165,72 @@ def handle_results_chat(text: str) -> None:
     if gender_label:
         apply_gender_choice(gender_label)
         return
-    lowered = (text or "").lower()
-    if is_idea_request(text) or "another idea" in lowered:
-        offer_idea(advance=True)
-        return
+    lowered = (text or "").strip().lower()
     if is_reset_request(text):
         reset_day(full=True)
         return
-    if any(w in lowered for w in ("see details", "show details", "breakdown", "line by line")):
+    if st.session_state.get("awaiting_idea_offer"):
+        if lowered in AFFIRM_IDEA:
+            st.session_state.awaiting_idea_offer = False
+            st.session_state.show_idea = True
+            offer_idea()
+            return
+        if lowered in DECLINE:
+            st.session_state.awaiting_idea_offer = False
+            st.session_state.awaiting_mospi_offer = True
+            add_message(
+                "assistant",
+                "That's fine. Want to see how your time compares with other women in India?",
+            )
+            return
+    if st.session_state.get("awaiting_mospi_offer"):
+        if lowered in AFFIRM_MOSPI:
+            offer_mospi()
+            return
+        if lowered in DECLINE:
+            st.session_state.awaiting_mospi_offer = False
+            add_message("assistant", "Okay. Ask anytime, or say **new day**.")
+            return
+    if is_idea_request(text) or "another idea" in lowered:
+        st.session_state.awaiting_idea_offer = False
+        st.session_state.show_idea = True
+        offer_idea(advance=True)
+        return
+    if (
+        is_question_about_results(text)
+        or "compare" in lowered
+        or "mospi" in lowered
+        or "average" in lowered
+    ):
+        offer_mospi()
+        return
+    if "breakdown" in lowered or "line by line" in lowered:
         st.session_state.show_breakdown = True
         add_message("assistant", "I've opened the line-by-line below.")
         return
-    if is_question_about_results(text):
-        st.session_state.show_breakdown = True
-        fallback = (
-            "The rupee figure is replacement cost: (minutes ÷ 60) × a conservative "
-            "2025–26 market hourly rate for a comparable paid role. "
-            "MoSPI compares minutes only — it never sets the wage. "
-            "I've opened the line-by-line below."
-        )
-        add_message("assistant", maybe_warm_reply(text, fallback))
-        return
     fallback = (
-        "I'm still here. Ask how this was calculated, say **suggest ideas**, "
-        "or **new day** when you want a fresh start."
+        "I'm still here. Say **compare my time**, **suggest ideas**, or **new day**."
     )
     add_message("assistant", maybe_warm_reply(text, fallback))
 
 
-# ---- Header ----
+# ---- Page ----
+st.markdown(APP_CSS, unsafe_allow_html=True)
+
 _today = date.today()
 _date_line = f"{_today.strftime('%A')}, {_today.day} {_today.strftime('%B %Y')}"
-st.markdown('<div class="care-heading">CareVal AI</div>', unsafe_allow_html=True)
+st.markdown('<div class="care-heading">CareVal</div>', unsafe_allow_html=True)
 st.markdown(f'<div class="care-date">{_date_line}</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="care-kicker">Recognising the value of invisible work</div>',
+    '<div class="care-kicker">The value of invisible work</div>',
     unsafe_allow_html=True,
 )
+render_progress()
 
 if not st.session_state.welcomed and not st.session_state.messages:
-    add_message(
-        "assistant",
-        "Hi 🌿 I'm here to recognise the care work you do every day.\n\n"
-        "Tell me one thing, with a time if you know it — "
-        "*cooked for 45 min*, *childcare for 2 hours*, *tutoring for 1 hour*, "
-        "*laundry for 20 min*.\n\n"
-        "We'll go one task at a time. When you're ready, say **that's all**.",
-    )
+    add_message("assistant", "Hi — I'm CareVal. What's your name?")
     st.session_state.welcomed = True
+    st.session_state.greet_step = "name"
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"], avatar="🌿" if msg["role"] == "assistant" else None):
@@ -1136,25 +1253,43 @@ stage = st.session_state.ui_stage
 if not st.session_state.get("pending_user_text"):
     if stage == "results":
         render_results()
-    elif not st.session_state.tasks and len(st.session_state.messages) <= 1:
+    elif st.session_state.get("greet_step") in ("name", "day"):
         st.markdown(
-            '<div style="margin: 0.8rem 0 0.4rem 0; font-size: 0.82rem; font-weight: 600; color: #9CA3AF; text-transform: uppercase; letter-spacing: 0.05em;">'
-            '⚡ Try a sample day (instant demo)'
-            '</div>',
+            '<div class="care-progress-label" style="margin: 0.4rem 0 0.55rem 0;">Or try a sample day</div>',
             unsafe_allow_html=True,
         )
         sample_options = [
-            ("sample_1", "👩 Working Mom's Day"),
-            ("sample_2", "👵 Caring for Elders"),
-            ("sample_3", "👨 Father Sharing Load"),
+            ("sample_1", "Urban homemaker"),
+            ("sample_2", "Non-urban homemaker"),
         ]
         cols = st.columns(len(sample_options))
         for col, (sid, slabel) in zip(cols, sample_options):
             if col.button(slabel, key=f"btn_{sid}", use_container_width=True):
                 load_sample_day(sid)
                 st.rerun()
+    elif stage == "collecting" and not st.session_state.get("pending_prompt"):
+        st.markdown(
+            '<div class="care-progress-label" style="margin: 0.4rem 0 0.55rem 0;">Tap a chore</div>',
+            unsafe_allow_html=True,
+        )
+        covered = logged_categories()
+        choices = [item for item in TASK_HINTS if item[0] not in covered] or TASK_HINTS
+        cols = st.columns(2)
+        for i, (code, label, _example) in enumerate(choices):
+            if cols[i % 2].button(label.title(), key=f"chore_{code}", use_container_width=True):
+                add_message("user", label)
+                ask_how_long(label)
+                st.rerun()
 
-user_input = st.chat_input("Type your day… e.g. cooked for 45 min")
+_step = st.session_state.get("greet_step")
+_placeholder = (
+    "Your name…"
+    if _step == "name"
+    else "How did your day go?"
+    if _step == "day"
+    else "A chore… e.g. cooked for 45 min"
+)
+user_input = st.chat_input(_placeholder)
 if user_input:
     add_message("user", user_input)
     st.session_state.pending_user_text = user_input
