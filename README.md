@@ -6,7 +6,7 @@ CareVal AI is a warm, conversational app that helps people (especially those doi
 
 > "I told CareVal what I did today → it remembered it → showed me the value of my invisible work → showed me what those skills could become."
 
-**Built for Patchamomma 2026.** 📄 [Documentation](#https://tinyurl.com/ydus4y5w) · ✍️ [Blog post](https://tinyurl.com/2kb9hfmz) · 🎥 [https://shorturl.at/vNgyr]
+**Built for Patchamomma 2026.** 📄 [Documentation](https://tinyurl.com/ydus4y5w) · ✍️ [Blog post](https://tinyurl.com/2kb9hfmz) · 🎥 [https://shorturl.at/vNgyr]
 
 ---
 
