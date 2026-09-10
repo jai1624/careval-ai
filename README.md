@@ -112,7 +112,7 @@ In `gcp` mode:
 
 1. **Classification**: each logged task is matched against `tus_activity_codes.csv` keyword lists (longest match wins). If nothing matches, Gemini is asked to pick strictly from the dynamically loaded set of valid codes (max 2 retries). If that also fails, the task becomes `unclassified` and is excluded from valuation but still shown to the user, explained plainly.
 2. **Task value** = `(minutes / 60) * base_hourly_rate_inr` (from `wage_equivalents.csv`, a synthetic reference wage per benchmark role — never real salary data).
-3. **Daily value** = sum of all classified task values.
+3. **Daily value** = sum of all classified task values. 
 4. **Illustrative annualized value** = `daily_value * 365`, always labeled exactly that — never "salary," "income," or "official."
 5. **MoSPI comparison**: domestic and caregiving minutes are tracked and compared **separately**, against locked benchmark constants (Domestic: Female 289 / Male 88 min/day; Caregiving: Female 137 / Male 75 min/day) — they are never combined into a single figure.
 6. Every valuation screen shows the mandatory disclaimer verbatim:
